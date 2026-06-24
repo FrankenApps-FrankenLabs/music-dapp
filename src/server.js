@@ -269,10 +269,11 @@ app.post('/api/lyrics', async (req, res) => {
 
   try {
     const artistLine   = artist ? `in the style of ${artist}` : '';
-    const languageLine = language && language !== 'English' 
-  ? language === 'Chinese' 
-    ? `Write the lyrics in Chinese using pinyin romanization (not Chinese characters).`
-    : `Write the lyrics in ${language} using romanized/latin script where possible.`
+    const romanizedLanguages = ['Chinese', 'Japanese', 'Korean', 'Arabic', 'Hindi', 'Russian'];
+const languageLine = language && language !== 'English'
+  ? romanizedLanguages.includes(language)
+    ? `Write the lyrics in ${language} using romanized/latin script only (e.g. pinyin for Chinese, romaji for Japanese, transliteration for Arabic/Hindi/Russian). Do not use any non-latin characters.`
+    : `Write the lyrics in ${language}.`
   : '';
 
     const modeLine = prompt.startsWith('__own__')
