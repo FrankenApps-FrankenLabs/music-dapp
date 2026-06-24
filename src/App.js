@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { BrowserProvider, parseUnits } from 'ethers';
 import frankenLogo from './frankenlabs_logo.png';
 
-// ─── Constants ────────────────────────────────────────────────────────────────
 const RECEIVING_WALLET = '0x7FE522ab4F456cFc41FE7a7a0C94F28801CCA8fc';
 const DOWNLOAD_PRICE   = '5';
+const SERVER_URL       = 'https://music-dapp.onrender.com';
 
 const genres = [
   'Rock', 'Metal', 'Big Band', 'Jazz', 'Hip Hop',
@@ -25,7 +25,12 @@ export default function App() {
   const [payError, setPayError] = useState('');
   const [walletAddress, setWalletAddress] = useState(null);
 
-  // ─── Wallet ───────────────────────────────────────────────────────────────
+  // Warm up server on page load
+  useEffect(() => {
+    fetch(`${SERVER_URL}/api/health`).catch(() => {});
+  }, []);
+
+  // Wallet
   useEffect(() => {
     if (window.ethereum?.selectedAddress) {
       setWalletAddress(window.ethereum.selectedAddress);
@@ -50,7 +55,6 @@ export default function App() {
     setPayError('');
   }, [lyrics]);
 
-  // ─── Step 1: Generate lyrics (free) ───────────────────────────────────────
   const handleGenerateLyrics = async () => {
     if (!prompt) return;
     setStep('generatingLyrics');
@@ -61,7 +65,7 @@ export default function App() {
 
     try {
       const promptPayload = mode === 'own' ? `__own__${prompt}` : prompt;
-      const res  = await fetch('https://music-dapp.onrender.com/api/lyrics', {
+      const res  = await fetch(`${SERVER_URL}/api/lyrics`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt: promptPayload, genre, artist }),
@@ -77,7 +81,6 @@ export default function App() {
     }
   };
 
-  // ─── Step 2: Pay native LCAI ──────────────────────────────────────────────
   const handlePay = async () => {
     setPayError('');
     setStep('paying');
@@ -109,13 +112,12 @@ export default function App() {
     }
   };
 
-  // ─── Step 3: Generate music (after payment) ───────────────────────────────
   const handleGenerateMusic = async (lyricsText, txHash) => {
     setStep('generatingMusic');
     setStatus('🎵 Generating your song — this takes 1-3 minutes...');
 
     try {
-      const res  = await fetch('https://music-dapp.onrender.com/api/music', {
+      const res  = await fetch(`${SERVER_URL}/api/music`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ lyrics: lyricsText, genre, artist, txHash }),
@@ -131,7 +133,6 @@ export default function App() {
     }
   };
 
-  // ─── Copy lyrics ──────────────────────────────────────────────────────────
   const handleCopy = () => {
     navigator.clipboard.writeText(lyrics).then(() => {
       setCopied(true);
@@ -139,7 +140,6 @@ export default function App() {
     });
   };
 
-  // ─── Download song ────────────────────────────────────────────────────────
   const handleDownload = async () => {
     if (!music?.audio_url) return;
     try {
@@ -156,7 +156,6 @@ export default function App() {
     }
   };
 
-  // ─── Styles ───────────────────────────────────────────────────────────────
   const S = {
     app: {
       minHeight: '100vh',
@@ -172,8 +171,7 @@ export default function App() {
     },
     sidebar: {
       position: 'fixed',
-      left: 0,
-      top: 0,
+      left: 0, top: 0,
       height: '100vh',
       width: '180px',
       background: 'rgba(0,0,0,0.7)',
@@ -296,7 +294,7 @@ export default function App() {
   return (
     <div style={S.app}>
 
-      {/* ── Sidebar ── */}
+      {/* Sidebar */}
       <div style={S.sidebar}>
         <img
           src={frankenLogo}
@@ -304,43 +302,21 @@ export default function App() {
           style={{ width: '140px', borderRadius: '12px', border: '2px solid rgba(51,255,102,0.4)' }}
         />
         <div style={{
-          fontFamily: 'Georgia, serif',
-          fontSize: '0.75rem',
-          fontWeight: '900',
-          letterSpacing: '2px',
-          color: '#33ff66',
-          textAlign: 'center',
-          textTransform: 'uppercase',
-          lineHeight: '1.6',
-        }}>
-          FRANKENLABS
-        </div>
+          fontFamily: 'Georgia, serif', fontSize: '0.75rem', fontWeight: '900',
+          letterSpacing: '2px', color: '#33ff66', textAlign: 'center', textTransform: 'uppercase',
+        }}>FRANKENLABS</div>
         <div style={{
-          color: '#555',
-          fontSize: '0.65rem',
-          letterSpacing: '3px',
-          textTransform: 'uppercase',
-          textAlign: 'center',
-        }}>
-          PRESENTS
-        </div>
+          color: '#555', fontSize: '0.65rem', letterSpacing: '3px',
+          textTransform: 'uppercase', textAlign: 'center',
+        }}>PRESENTS</div>
         <div style={{
-          marginTop: '1rem',
-          background: 'rgba(51,255,102,0.06)',
-          border: '1px solid rgba(51,255,102,0.2)',
-          borderRadius: '8px',
-          padding: '0.75rem',
-          textAlign: 'center',
+          marginTop: '1rem', background: 'rgba(51,255,102,0.06)',
+          border: '1px solid rgba(51,255,102,0.2)', borderRadius: '8px',
+          padding: '0.75rem', textAlign: 'center',
         }}>
-          <div style={{ color: '#33ff66', fontSize: '0.7rem', letterSpacing: '1px', lineHeight: '1.6' }}>
-            All queries cost
-          </div>
-          <div style={{ color: '#ff4400', fontWeight: 'bold', fontSize: '1rem' }}>
-            5 LCAI
-          </div>
-          <div style={{ color: '#33ff66', fontSize: '0.7rem', letterSpacing: '1px', lineHeight: '1.6' }}>
-            per song
-          </div>
+          <div style={{ color: '#33ff66', fontSize: '0.7rem', letterSpacing: '1px', lineHeight: '1.6' }}>All queries cost</div>
+          <div style={{ color: '#ff4400', fontWeight: 'bold', fontSize: '1rem' }}>5 LCAI</div>
+          <div style={{ color: '#33ff66', fontSize: '0.7rem', letterSpacing: '1px', lineHeight: '1.6' }}>per song</div>
         </div>
       </div>
 
@@ -358,19 +334,14 @@ export default function App() {
 
       {/* Wallet button */}
       <div style={{ maxWidth: '600px', margin: '0 auto 1.5rem', display: 'flex', justifyContent: 'flex-end' }}>
-        <button
-          onClick={connectWallet}
-          style={{
-            background: walletAddress ? 'rgba(0,200,100,0.15)' : 'linear-gradient(135deg,#ff4400,#aa00ff)',
-            border: walletAddress ? '1px solid rgba(0,200,100,0.4)' : 'none',
-            color: walletAddress ? '#00cc66' : 'white',
-            borderRadius: '8px', padding: '0.5rem 1rem',
-            cursor: 'pointer', fontSize: '0.85rem', fontWeight: 'bold',
-          }}
-        >
-          {walletAddress
-            ? `✅ ${walletAddress.slice(0,6)}...${walletAddress.slice(-4)}`
-            : '🔌 Connect Wallet'}
+        <button onClick={connectWallet} style={{
+          background: walletAddress ? 'rgba(0,200,100,0.15)' : 'linear-gradient(135deg,#ff4400,#aa00ff)',
+          border: walletAddress ? '1px solid rgba(0,200,100,0.4)' : 'none',
+          color: walletAddress ? '#00cc66' : 'white',
+          borderRadius: '8px', padding: '0.5rem 1rem',
+          cursor: 'pointer', fontSize: '0.85rem', fontWeight: 'bold',
+        }}>
+          {walletAddress ? `✅ ${walletAddress.slice(0,6)}...${walletAddress.slice(-4)}` : '🔌 Connect Wallet'}
         </button>
       </div>
 
@@ -444,16 +415,13 @@ export default function App() {
             <div style={{ background: 'linear-gradient(135deg,#ff4400,#aa00ff)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', fontWeight: 'bold', fontSize: '1.1rem', letterSpacing: '2px', textTransform: 'uppercase' }}>
               Your Lyrics
             </div>
-            <button
-              onClick={handleCopy}
-              style={{
-                background: copied ? 'rgba(0,200,100,0.15)' : 'rgba(255,255,255,0.06)',
-                border: `1px solid ${copied ? 'rgba(0,200,100,0.4)' : 'rgba(255,68,0,0.3)'}`,
-                color: copied ? '#00cc66' : '#aaa',
-                borderRadius: '6px', padding: '0.4rem 0.9rem',
-                fontSize: '0.8rem', cursor: 'pointer', letterSpacing: '1px',
-              }}
-            >
+            <button onClick={handleCopy} style={{
+              background: copied ? 'rgba(0,200,100,0.15)' : 'rgba(255,255,255,0.06)',
+              border: `1px solid ${copied ? 'rgba(0,200,100,0.4)' : 'rgba(255,68,0,0.3)'}`,
+              color: copied ? '#00cc66' : '#aaa',
+              borderRadius: '6px', padding: '0.4rem 0.9rem',
+              fontSize: '0.8rem', cursor: 'pointer', letterSpacing: '1px',
+            }}>
               {copied ? '✅ Copied!' : '📋 Copy Lyrics'}
             </button>
           </div>
@@ -467,28 +435,18 @@ export default function App() {
       {showPaywall && (
         <div style={{ maxWidth: '600px', margin: '0 auto 2rem', background: 'rgba(0,0,0,0.35)', borderRadius: '12px', padding: '1.5rem', border: '1px solid rgba(170,0,255,0.3)', textAlign: 'center' }}>
           <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>🎵</div>
-          <div style={{ fontWeight: 'bold', fontSize: '1.1rem', marginBottom: '0.4rem' }}>
-            Generate &amp; Download Your Song
-          </div>
+          <div style={{ fontWeight: 'bold', fontSize: '1.1rem', marginBottom: '0.4rem' }}>Generate &amp; Download Your Song</div>
           <div style={{ color: '#888', fontSize: '0.9rem', marginBottom: '1.25rem' }}>
             Pay <span style={{ color: '#ff4400', fontWeight: 'bold' }}>{DOWNLOAD_PRICE} LCAI</span> to generate the music and unlock the download.
           </div>
           {!walletAddress && (
-            <div style={{ color: '#666', fontSize: '0.85rem', marginBottom: '1rem' }}>
-              👆 Connect your wallet above first
-            </div>
+            <div style={{ color: '#666', fontSize: '0.85rem', marginBottom: '1rem' }}>👆 Connect your wallet above first</div>
           )}
-          <button
-            onClick={handlePay}
-            disabled={!walletAddress}
-            style={S.primaryBtn(!walletAddress)}
-          >
+          <button onClick={handlePay} disabled={!walletAddress} style={S.primaryBtn(!walletAddress)}>
             {walletAddress ? `💎 Pay ${DOWNLOAD_PRICE} LCAI & Generate Song` : '🔒 Connect Wallet to Continue'}
           </button>
           {payError && (
-            <div style={{ color: '#ff4444', fontSize: '0.85rem', marginTop: '0.75rem' }}>
-              ❌ {payError}
-            </div>
+            <div style={{ color: '#ff4444', fontSize: '0.85rem', marginTop: '0.75rem' }}>❌ {payError}</div>
           )}
         </div>
       )}

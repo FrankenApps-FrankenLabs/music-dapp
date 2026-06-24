@@ -277,7 +277,7 @@ async function runLyricsJob(prompt) {
 
   return chunks.join('');
 }
-
+app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 // ─── POST /api/lyrics ─────────────────────────────────────────────────────────
 app.post('/api/lyrics', async (req, res) => {
   const { prompt, genre, artist } = req.body;
