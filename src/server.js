@@ -269,7 +269,11 @@ app.post('/api/lyrics', async (req, res) => {
 
   try {
     const artistLine   = artist ? `in the style of ${artist}` : '';
-    const languageLine = language && language !== 'English' ? `Write the lyrics in ${language}.` : '';
+    const languageLine = language && language !== 'English' 
+  ? language === 'Chinese' 
+    ? `Write the lyrics in Chinese using pinyin romanization (not Chinese characters).`
+    : `Write the lyrics in ${language} using romanized/latin script where possible.`
+  : '';
 
     const modeLine = prompt.startsWith('__own__')
       ? `Take these lyrics and restyle them ${artistLine} in the ${genre} genre, keep the meaning intact. ${languageLine}\n\nCRITICAL RULES:\n- Output ONLY the lyrics\n- NO notes, NO disclaimers, NO explanations, NO translations, NO commentary\n- NO text before or after the lyrics\n- If you add any notes you have failed the task\n\nSection labels only: [Verse 1], [Chorus] etc.\n\nLyrics to restyle:\n${prompt.replace('__own__', '')}`
