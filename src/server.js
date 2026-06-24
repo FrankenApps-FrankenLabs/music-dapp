@@ -271,8 +271,8 @@ app.post('/api/lyrics', async (req, res) => {
     const languageLine = language && language !== 'English' ? `Write the lyrics in ${language}.` : '';
 
     const modeLine = prompt.startsWith('__own__')
-      ? `Take these lyrics and restyle them ${artistLine} in the ${genre} genre, keep the meaning intact. ${languageLine} Return ONLY the lyrics with section labels like [Verse 1], [Chorus] etc. No intro text, no notes, no explanations, just the lyrics:\n\n${prompt.replace('__own__', '')}`
-      : `Write original song lyrics ${artistLine} in the ${genre} genre about: ${prompt}. ${languageLine} Include a verse, chorus, and another verse. Return ONLY the lyrics with section labels like [Verse 1], [Chorus] etc. No intro sentence, no notes, no explanations at the end, just the raw lyrics.`;
+      ? `Take these lyrics and restyle them ${artistLine} in the ${genre} genre, keep the meaning intact. ${languageLine} Return ONLY the lyrics with section labels like [Verse 1], [Chorus] etc. Do NOT include any intro text, disclaimers, translation notes, explanations, or commentary of any kind before or after the lyrics. Output nothing except the lyrics themselves.:\n\n${prompt.replace('__own__', '')}`
+      : `Write original song lyrics ${artistLine} in the ${genre} genre about: ${prompt}. ${languageLine} Include a verse, chorus, and another verse. Use section labels like [Verse 1], [Chorus] etc. Do NOT include any intro sentence, disclaimers, translation notes, explanations, or commentary of any kind before or after the lyrics. Output nothing except the raw lyrics themselves.`;
 
     const lyrics = await runLyricsJob(modeLine);
     res.json({ lyrics });
