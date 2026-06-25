@@ -38,7 +38,6 @@ export default function App() {
   const [music, setMusic]           = useState(null);
   const [status, setStatus]         = useState('');
   const [copied, setCopied]         = useState(false);
-  const [linkCopied, setLinkCopied] = useState(false);
   const [payError, setPayError]     = useState('');
   const [walletAddress, setWalletAddress] = useState(null);
   const [view, setView]             = useState('home');
@@ -186,15 +185,7 @@ export default function App() {
     });
   };
 
-  const handleCopyLink = (songId) => {
-    const url = `${window.location.origin}?song=${songId}`;
-    navigator.clipboard.writeText(url).then(() => {
-      setLinkCopied(true);
-      setTimeout(() => setLinkCopied(false), 2000);
-    });
-  };
-
-  const handleDownload = async (audioUrl) => {
+   const handleDownload = async (audioUrl) => {
     const url = audioUrl || music?.audio_url;
     if (!url) return;
     try {
