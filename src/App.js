@@ -36,14 +36,12 @@ export default function App() {
   const [step, setStep]             = useState('idle');
   const [lyrics, setLyrics]         = useState('');
   const [music, setMusic]           = useState(null);
-  const [savedSong, setSavedSong]   = useState(null);
   const [status, setStatus]         = useState('');
   const [copied, setCopied]         = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
   const [payError, setPayError]     = useState('');
   const [walletAddress, setWalletAddress] = useState(null);
   const [view, setView]             = useState('home');
-  const [mySongs, setMySongs]       = useState([]);
   const [sharedSong, setSharedSong] = useState(null);
   const [loadingShared, setLoadingShared] = useState(false);
 
@@ -51,7 +49,6 @@ export default function App() {
     fetch(`${SERVER_URL}/api/health`).catch(() => {});
   }, []);
 
-  // Check for shared song URL
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const songId = params.get('song');
@@ -90,7 +87,6 @@ export default function App() {
   useEffect(() => {
     setMusic(null);
     setPayError('');
-    setSavedSong(null);
   }, [lyrics]);
 
   const toggleGenre = (g) => {
@@ -104,14 +100,6 @@ export default function App() {
     });
   };
 
-  const loadMySongs = async () => {
-    if (!walletAddress) return;
-    const res = await fetch(`${SERVER_URL}/api/my-songs/${walletAddress}`);
-    const data = await res.json();
-    setMySongs(data.songs || []);
-    setView('library');
-  };
-
   const isPoemOrHaiku = mode === 'poem' || mode === 'haiku';
 
   const handleGenerate = async () => {
@@ -120,7 +108,6 @@ export default function App() {
     setStatus('Connecting to LightChain network...');
     setLyrics('');
     setMusic(null);
-    setSavedSong(null);
     setPayError('');
 
     try {
@@ -186,25 +173,6 @@ export default function App() {
       setMusic(data.music);
       setStep('done');
       setStatus('');
-
-      // Save song via server
-      if (walletAddress && data.music?.audio_url) {
-        const title = prompt.split('\n')[0].slice(0, 60);
-        const saveRes = await fetch(`${SERVER_URL}/api/save-song`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            walletAddress,
-            title,
-            genre: genresSelected.join(', '),
-            artist, language, mode,
-            lyrics: lyricsText,
-            audioUrl: data.music.audio_url,
-          }),
-        });
-        const saveData = await saveRes.json();
-        if (saveData.song) setSavedSong(saveData.song);
-      }
     } catch (err) {
       setStatus('Music generation error: ' + err.message);
       setStep('lyrics');
@@ -366,15 +334,6 @@ export default function App() {
       </div>
       <div style={{ color: '#555', fontSize: '0.65rem', letterSpacing: '3px',
         textTransform: 'uppercase', textAlign: 'center' }}>PRESENTS</div>
-      {walletAddress && (
-        <button onClick={view === 'library' ? () => setView('home') : loadMySongs}
-          style={{ marginTop: '0.5rem', background: 'rgba(255,68,0,0.1)',
-            border: '1px solid rgba(255,68,0,0.3)', color: '#ff6600',
-            borderRadius: '8px', padding: '0.5rem', fontSize: '0.75rem',
-            cursor: 'pointer', width: '100%', fontWeight: 'bold' }}>
-          {view === 'library' ? '← Back' : '🎵 My Songs'}
-        </button>
-      )}
     </div>
   );
 
@@ -424,64 +383,6 @@ export default function App() {
                 🎵 Create your own song
               </button>
             </div>
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  // ─── Library view ─────────────────────────────────────────────────────────
-  if (view === 'library') {
-    return (
-      <div style={S.app}>
-        <Sidebar />
-        <h1 style={S.title}>🎵 My Songs</h1>
-        <p style={S.sub}>Your LightChain library</p>
-
-        {mySongs.length === 0 ? (
-          <div style={{ textAlign: 'center', color: '#555', marginTop: '3rem' }}>
-            No songs yet — generate one and it will appear here.
-          </div>
-        ) : (
-          <div style={{ maxWidth: '600px', margin: '0 auto' }}>
-            {mySongs.map(song => (
-              <div key={song.id} style={{ ...S.card, marginBottom: '1.5rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
-                  <div>
-                    <div style={{ color: 'white', fontWeight: 'bold', marginBottom: '0.25rem' }}>
-                      {song.title || 'Untitled'}
-                    </div>
-                    <div style={{ color: '#666', fontSize: '0.8rem' }}>
-                      {song.genre} · {song.language}
-                      {song.artist && ` · ${song.artist} style`}
-                    </div>
-                  </div>
-                  <button onClick={() => handleCopyLink(song.id)} style={{
-                    background: 'rgba(255,255,255,0.06)',
-                    border: '1px solid rgba(255,68,0,0.3)',
-                    color: '#aaa', borderRadius: '6px', padding: '0.4rem 0.9rem',
-                    fontSize: '0.8rem', cursor: 'pointer',
-                  }}>
-                    🔗 Copy Link
-                  </button>
-                </div>
-                {song.audio_url && (
-                  <audio controls style={{ width: '100%', marginBottom: '0.75rem' }}>
-                    <source src={song.audio_url} type="audio/mpeg" />
-                  </audio>
-                )}
-                <div style={{ display: 'flex', gap: '0.5rem' }}>
-                  <button onClick={() => handleDownload(song.audio_url)}
-                    style={{ ...S.greenBtn, fontSize: '0.85rem', padding: '0.6rem' }}>
-                    ⬇️ Download
-                  </button>
-                  <a href="https://lighttunes.win" target="_blank" rel="noopener noreferrer"
-                    style={{ ...S.purpleBtn, marginTop: 0, fontSize: '0.85rem', padding: '0.6rem', flex: 1 }}>
-                    🌍 LightTunes
-                  </a>
-                </div>
-              </div>
-            ))}
           </div>
         )}
       </div>
@@ -611,7 +512,7 @@ export default function App() {
       </div>
 
       {showLyrics && (
-        <div style={{ maxWidth: '600px', margin: '0 auto 1.5rem', background: 'rgba(255,68,0,0.05)',
+        <div style={{ maxWidth: '600px', margin: '0 auto 1rem', background: 'rgba(255,68,0,0.05)',
           borderRadius: '12px', padding: '1.5rem', border: '1px solid rgba(255,68,0,0.3)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
             <div style={{ background: 'linear-gradient(135deg,#ff4400,#aa00ff)', WebkitBackgroundClip: 'text',
@@ -631,6 +532,19 @@ export default function App() {
           <pre style={{ whiteSpace: 'pre-wrap', color: '#e5e7eb', lineHeight: '1.8', margin: 0 }}>
             {lyrics}
           </pre>
+        </div>
+      )}
+
+      {/* Review note — shown after lyrics are generated, before paying */}
+      {showLyrics && step === 'lyrics' && (
+        <div style={{ maxWidth: '600px', margin: '0 auto 1.5rem', padding: '0.9rem 1.25rem',
+          background: 'rgba(255,200,0,0.06)', border: '1px solid rgba(255,200,0,0.25)',
+          borderRadius: '10px', display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
+          <span style={{ fontSize: '1.2rem', flexShrink: 0 }}>✏️</span>
+          <p style={{ margin: 0, color: '#bba', fontSize: '0.88rem', lineHeight: '1.6' }}>
+            <strong style={{ color: '#ffcc44' }}>Before you continue —</strong> please double-check your lyrics.
+            If you'd like to make changes, copy them into the <strong style={{ color: '#ffcc44' }}>✏️ My own lyrics</strong> mode above and edit before generating your song.
+          </p>
         </div>
       )}
 
@@ -678,14 +592,6 @@ export default function App() {
           <button onClick={() => handleDownload()} style={S.greenBtn}>
             ⬇️ Download Song (MP3)
           </button>
-          {savedSong && (
-            <button onClick={() => handleCopyLink(savedSong.id)} style={{
-              ...S.outlineBtn, width: '100%', marginTop: '0.75rem', padding: '0.9rem',
-              fontSize: '1rem', letterSpacing: '2px', textTransform: 'uppercase',
-            }}>
-              {linkCopied ? '✅ Link Copied!' : '🔗 Copy Shareable Link'}
-            </button>
-          )}
           <a href="https://lighttunes.win" target="_blank" rel="noopener noreferrer" style={S.purpleBtn}>
             🌍 Publish on LightTunes
           </a>
