@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserProvider, parseUnits } from 'ethers';
 import frankenLogo from './frankenlabs_logo.png';
+import { saveUser, saveSong, getUserSongs, getSongById } from './supabase';
 
 const RECEIVING_WALLET = '0x7FE522ab4F456cFc41FE7a7a0C94F28801CCA8fc';
 const DOWNLOAD_PRICE   = '5';
@@ -10,7 +11,8 @@ const genres = [
   'Rock', 'Metal', 'Big Band', 'Jazz', 'Hip Hop', 'Rap', 'Drill', 'Trap',
   'Country', 'Pop', 'Blues', 'Electronic', 'R&B', 'Punk', 'Folk', 'Classical',
   'Reggae', 'Afrobeats', 'Gospel', 'Ambient', 'Soundtrack', 'Indie', 'Emo',
-  'Grunge', 'Latin', 'Dancehall', 'Soul', 'Throat Singing', 'Monastery Chanting', 'Drum and Bass', 'Dubstep',
+  'Grunge', 'Latin', 'Dancehall', 'Soul', 'Throat Singing', 'Monastery Chanting',
+  'Drum and Bass', 'Dubstep',
 ];
 
 const languages = [
@@ -35,15 +37,37 @@ export default function App() {
   const [step, setStep]             = useState('idle');
   const [lyrics, setLyrics]         = useState('');
   const [music, setMusic]           = useState(null);
+  const [savedSong, setSavedSong]   = useState(null);
   const [status, setStatus]         = useState('');
   const [copied, setCopied]         = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
   const [payError, setPayError]     = useState('');
   const [walletAddress, setWalletAddress] = useState(null);
+  const [view, setView]             = useState('home');
+  const [mySongs, setMySongs]       = useState([]);
+  const [sharedSong, setSharedSong] = useState(null);
+  const [loadingShared, setLoadingShared] = useState(false);
 
+  // Warm up server
   useEffect(() => {
     fetch(`${SERVER_URL}/api/health`).catch(() => {});
   }, []);
 
+  // Check for shared song URL
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const songId = params.get('song');
+    if (songId) {
+      setLoadingShared(true);
+      getSongById(songId).then(song => {
+        setSharedSong(song);
+        setLoadingShared(false);
+        setView('shared');
+      });
+    }
+  }, []);
+
+  // Wallet
   useEffect(() => {
     if (window.ethereum?.selectedAddress) {
       setWalletAddress(window.ethereum.selectedAddress);
@@ -58,6 +82,7 @@ export default function App() {
       if (!window.ethereum) throw new Error('MetaMask not found');
       const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
       setWalletAddress(accounts[0]);
+      await saveUser(accounts[0]);
     } catch (err) {
       console.error('Wallet connect error:', err.message);
     }
@@ -66,6 +91,7 @@ export default function App() {
   useEffect(() => {
     setMusic(null);
     setPayError('');
+    setSavedSong(null);
   }, [lyrics]);
 
   const toggleGenre = (g) => {
@@ -79,6 +105,13 @@ export default function App() {
     });
   };
 
+  const loadMySongs = async () => {
+    if (!walletAddress) return;
+    const songs = await getUserSongs(walletAddress);
+    setMySongs(songs);
+    setView('library');
+  };
+
   const isPoemOrHaiku = mode === 'poem' || mode === 'haiku';
 
   const handleGenerate = async () => {
@@ -87,6 +120,7 @@ export default function App() {
     setStatus('Connecting to LightChain network...');
     setLyrics('');
     setMusic(null);
+    setSavedSong(null);
     setPayError('');
 
     try {
@@ -97,9 +131,7 @@ export default function App() {
         body: JSON.stringify({
           prompt: promptPayload,
           genre: genresSelected.join(', '),
-          artist,
-          language,
-          mode,
+          artist, language, mode,
         }),
       });
       const data = await res.json();
@@ -154,6 +186,22 @@ export default function App() {
       setMusic(data.music);
       setStep('done');
       setStatus('');
+
+      // Auto-save to Supabase
+      if (walletAddress && data.music?.audio_url) {
+        const title = prompt.split('\n')[0].slice(0, 60);
+        const saved = await saveSong({
+          walletAddress,
+          title,
+          genre: genresSelected.join(', '),
+          artist,
+          language,
+          mode,
+          lyrics: lyricsText,
+          audioUrl: data.music.audio_url,
+        });
+        setSavedSong(saved);
+      }
     } catch (err) {
       setStatus('Music generation error: ' + err.message);
       setStep('lyrics');
@@ -167,16 +215,25 @@ export default function App() {
     });
   };
 
-  const handleDownload = async () => {
-    if (!music?.audio_url) return;
+  const handleCopyLink = (songId) => {
+    const url = `${window.location.origin}?song=${songId}`;
+    navigator.clipboard.writeText(url).then(() => {
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2000);
+    });
+  };
+
+  const handleDownload = async (audioUrl) => {
+    const url = audioUrl || music?.audio_url;
+    if (!url) return;
     try {
-      const res  = await fetch(music.audio_url);
+      const res  = await fetch(url);
       const blob = await res.blob();
-      const url  = URL.createObjectURL(blob);
+      const burl = URL.createObjectURL(blob);
       const a    = document.createElement('a');
-      a.href = url; a.download = 'LyricsAI-song.mp3'; a.click();
-      URL.revokeObjectURL(url);
-    } catch { window.open(music.audio_url, '_blank'); }
+      a.href = burl; a.download = 'LyricsAI-song.mp3'; a.click();
+      URL.revokeObjectURL(burl);
+    } catch { window.open(url, '_blank'); }
   };
 
   const S = {
@@ -269,6 +326,11 @@ export default function App() {
       textTransform: 'uppercase', cursor: 'pointer', textAlign: 'center',
       textDecoration: 'none', marginTop: '0.75rem', boxSizing: 'border-box',
     },
+    outlineBtn: {
+      background: 'transparent', border: '1px solid rgba(255,68,0,0.4)',
+      color: '#aaa', borderRadius: '8px', padding: '0.5rem 1rem',
+      fontSize: '0.85rem', cursor: 'pointer', fontWeight: 'bold',
+    },
   };
 
   const isGenerating  = step === 'generatingLyrics' || step === 'generatingMusic';
@@ -291,10 +353,153 @@ export default function App() {
     return 'Your Lyrics';
   };
 
+  // ─── Shared song view ─────────────────────────────────────────────────────
+  if (view === 'shared') {
+    return (
+      <div style={S.app}>
+        <div style={S.sidebar}>
+          <img src={frankenLogo} alt="FrankenLabs"
+            style={{ width: '140px', borderRadius: '12px', border: '2px solid rgba(51,255,102,0.4)' }} />
+          <div style={{ fontFamily: 'Georgia, serif', fontSize: '0.75rem', fontWeight: '900',
+            letterSpacing: '2px', color: '#33ff66', textAlign: 'center', textTransform: 'uppercase' }}>
+            FRANKENLABS
+          </div>
+          <div style={{ color: '#555', fontSize: '0.65rem', letterSpacing: '3px',
+            textTransform: 'uppercase', textAlign: 'center' }}>PRESENTS</div>
+        </div>
+
+        <h1 style={S.title}>🎵 LyricsAI</h1>
+        <p style={S.sub}>Powered by LightChain</p>
+
+        {loadingShared && (
+          <div style={{ textAlign: 'center', color: '#aa00ff', marginTop: '3rem' }}>
+            ⚡ Loading song...
+          </div>
+        )}
+
+        {sharedSong && (
+          <div style={{ maxWidth: '600px', margin: '0 auto' }}>
+            <div style={{ ...S.card, marginBottom: '1.5rem' }}>
+              <div style={{ color: '#aaa', fontSize: '0.8rem', letterSpacing: '2px',
+                textTransform: 'uppercase', marginBottom: '0.5rem' }}>
+                {sharedSong.genre} · {sharedSong.language}
+                {sharedSong.artist && ` · ${sharedSong.artist} style`}
+              </div>
+              <pre style={{ whiteSpace: 'pre-wrap', color: '#e5e7eb', lineHeight: '1.8', margin: 0 }}>
+                {sharedSong.lyrics}
+              </pre>
+            </div>
+
+            {sharedSong.audio_url && (
+              <div style={{ maxWidth: '600px', margin: '0 auto', background: 'rgba(255,68,0,0.05)',
+                borderRadius: '12px', padding: '1.5rem', border: '1px solid rgba(255,68,0,0.3)' }}>
+                <div style={{ color: '#aa00ff', fontWeight: 'bold', marginBottom: '1rem',
+                  letterSpacing: '2px', textTransform: 'uppercase' }}>🎸 Listen</div>
+                <audio controls style={{ width: '100%', marginBottom: '1.25rem' }}>
+                  <source src={sharedSong.audio_url} type="audio/mpeg" />
+                </audio>
+                <button onClick={() => handleDownload(sharedSong.audio_url)} style={S.greenBtn}>
+                  ⬇️ Download Song (MP3)
+                </button>
+                <a href="https://lighttunes.win" target="_blank" rel="noopener noreferrer" style={S.purpleBtn}>
+                  🌍 Publish on LightTunes
+                </a>
+              </div>
+            )}
+
+            <div style={{ textAlign: 'center', marginTop: '2rem' }}>
+              <button onClick={() => { setView('home'); window.history.pushState({}, '', '/'); }}
+                style={S.outlineBtn}>
+                🎵 Create your own song
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ─── My library view ──────────────────────────────────────────────────────
+  if (view === 'library') {
+    return (
+      <div style={S.app}>
+        <div style={S.sidebar}>
+          <img src={frankenLogo} alt="FrankenLabs"
+            style={{ width: '140px', borderRadius: '12px', border: '2px solid rgba(51,255,102,0.4)' }} />
+          <div style={{ fontFamily: 'Georgia, serif', fontSize: '0.75rem', fontWeight: '900',
+            letterSpacing: '2px', color: '#33ff66', textAlign: 'center', textTransform: 'uppercase' }}>
+            FRANKENLABS
+          </div>
+          <div style={{ color: '#555', fontSize: '0.65rem', letterSpacing: '3px',
+            textTransform: 'uppercase', textAlign: 'center' }}>PRESENTS</div>
+          <button onClick={() => setView('home')} style={{ ...S.outlineBtn, marginTop: '1rem', width: '100%' }}>
+            ← Back
+          </button>
+        </div>
+
+        <h1 style={S.title}>🎵 My Songs</h1>
+        <p style={S.sub}>Your LightChain library</p>
+
+        {mySongs.length === 0 ? (
+          <div style={{ textAlign: 'center', color: '#555', marginTop: '3rem' }}>
+            No songs yet — generate one and it will appear here.
+          </div>
+        ) : (
+          <div style={{ maxWidth: '600px', margin: '0 auto' }}>
+            {mySongs.map(song => (
+              <div key={song.id} style={{ ...S.card, marginBottom: '1.5rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
+                  <div>
+                    <div style={{ color: 'white', fontWeight: 'bold', marginBottom: '0.25rem' }}>
+                      {song.title || 'Untitled'}
+                    </div>
+                    <div style={{ color: '#666', fontSize: '0.8rem' }}>
+                      {song.genre} · {song.language}
+                      {song.artist && ` · ${song.artist} style`}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleCopyLink(song.id)}
+                    style={{
+                      background: linkCopied ? 'rgba(0,200,100,0.15)' : 'rgba(255,255,255,0.06)',
+                      border: `1px solid ${linkCopied ? 'rgba(0,200,100,0.4)' : 'rgba(255,68,0,0.3)'}`,
+                      color: linkCopied ? '#00cc66' : '#aaa',
+                      borderRadius: '6px', padding: '0.4rem 0.9rem',
+                      fontSize: '0.8rem', cursor: 'pointer',
+                    }}
+                  >
+                    {linkCopied ? '✅ Copied!' : '🔗 Copy Link'}
+                  </button>
+                </div>
+
+                {song.audio_url && (
+                  <audio controls style={{ width: '100%', marginBottom: '0.75rem' }}>
+                    <source src={song.audio_url} type="audio/mpeg" />
+                  </audio>
+                )}
+
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <button onClick={() => handleDownload(song.audio_url)}
+                    style={{ ...S.greenBtn, fontSize: '0.85rem', padding: '0.6rem' }}>
+                    ⬇️ Download
+                  </button>
+                  <a href="https://lighttunes.win" target="_blank" rel="noopener noreferrer"
+                    style={{ ...S.purpleBtn, marginTop: 0, fontSize: '0.85rem', padding: '0.6rem', flex: 1 }}>
+                    🌍 LightTunes
+                  </a>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ─── Main view ────────────────────────────────────────────────────────────
   return (
     <div style={S.app}>
 
-      {/* Sidebar */}
       <div style={S.sidebar}>
         <img src={frankenLogo} alt="FrankenLabs"
           style={{ width: '140px', borderRadius: '12px', border: '2px solid rgba(51,255,102,0.4)' }} />
@@ -311,9 +516,17 @@ export default function App() {
           <div style={{ color: '#ff4400', fontWeight: 'bold', fontSize: '1rem' }}>5 LCAI</div>
           <div style={{ color: '#33ff66', fontSize: '0.7rem', letterSpacing: '1px', lineHeight: '1.6' }}>per song</div>
         </div>
+        {walletAddress && (
+          <button onClick={loadMySongs}
+            style={{ marginTop: '1rem', background: 'rgba(255,68,0,0.1)',
+              border: '1px solid rgba(255,68,0,0.3)', color: '#ff6600',
+              borderRadius: '8px', padding: '0.5rem', fontSize: '0.75rem',
+              cursor: 'pointer', width: '100%', fontWeight: 'bold' }}>
+            🎵 My Songs
+          </button>
+        )}
       </div>
 
-      {/* Floating notes */}
       {['♪','♫','♩','♬','♭'].map((n, i) => (
         <div key={i} style={{ position: 'fixed', fontSize: '1.5rem', opacity: 0.08,
           top: `${15 + i * 15}%`, left: `${5 + i * 18}%`,
@@ -323,7 +536,6 @@ export default function App() {
       <h1 style={S.title}>🎵 LyricsAI</h1>
       <p style={S.sub}>Powered by LightChain</p>
 
-      {/* Wallet button */}
       <div style={{ maxWidth: '600px', margin: '0 auto 1.5rem', display: 'flex', justifyContent: 'flex-end' }}>
         <button onClick={connectWallet} style={{
           background: walletAddress ? 'rgba(0,200,100,0.15)' : 'linear-gradient(135deg,#ff4400,#aa00ff)',
@@ -335,7 +547,6 @@ export default function App() {
         </button>
       </div>
 
-      {/* Mode selector */}
       <div style={{ maxWidth: '600px', margin: '0 auto 1.5rem' }}>
         <label style={S.label}>What do you want to create?</label>
         <div style={S.btnWrap}>
@@ -348,7 +559,6 @@ export default function App() {
         </div>
       </div>
 
-      {/* Prompt */}
       <div style={S.card}>
         <label style={S.label}>
           {mode === 'topic' && "What's your song about?"}
@@ -371,34 +581,24 @@ export default function App() {
           onChange={e => setPrompt(e.target.value)}
         />
         {mode === 'topic' && (
-  <div style={{
-    marginTop: '0.75rem',
-    padding: '0.75rem',
-    background: 'rgba(255,68,0,0.05)',
-    borderRadius: '8px',
-    border: '1px solid rgba(255,68,0,0.15)',
-    fontSize: '0.78rem',
-    color: '#666',
-    lineHeight: '1.6',
-  }}>
-    💡 <span style={{color:'#888'}}>Pro tip — control each section's style using brackets:</span>
-    <br/>
-    <span style={{color:'#555', fontStyle:'italic'}}>
-      A song about heaven and earth<br/>
-      [Verse 1: monastery chanting, heavenly feel]<br/>
-      [Chorus: electronic, both worlds colliding]<br/>
-      [Bridge: trap beat, the breaking point]
-    </span>
-  </div>
-)}
+          <div style={{ marginTop: '0.75rem', padding: '0.75rem',
+            background: 'rgba(255,68,0,0.05)', borderRadius: '8px',
+            border: '1px solid rgba(255,68,0,0.15)', fontSize: '0.78rem', color: '#666', lineHeight: '1.6' }}>
+            💡 <span style={{ color: '#888' }}>Pro tip — control each section's style using brackets:</span>
+            <br/>
+            <span style={{ color: '#555', fontStyle: 'italic' }}>
+              A song about heaven and earth<br/>
+              [Verse 1: monastery chanting, heavenly feel]<br/>
+              [Chorus: electronic, both worlds colliding]<br/>
+              [Bridge: trap beat, the breaking point]
+            </span>
+          </div>
+        )}
       </div>
 
-      {/* Genre — hidden for haiku */}
       {mode !== 'haiku' && (
         <div style={S.card}>
-          <label style={S.label}>
-            {isPoemOrHaiku ? 'Pick a style' : 'Pick up to 3 genres'}
-          </label>
+          <label style={S.label}>{isPoemOrHaiku ? 'Pick a style' : 'Pick up to 3 genres'}</label>
           <span style={S.sublabel}>
             {mode === 'poem' ? 'Influences the tone and rhythm of the poem' :
               genresSelected.length === 3 ? '✅ 3 selected — deselect one to change' :
@@ -414,7 +614,6 @@ export default function App() {
         </div>
       )}
 
-      {/* Language */}
       <div style={S.card}>
         <label style={S.label}>Pick a language</label>
         <div style={S.btnWrap}>
@@ -424,7 +623,6 @@ export default function App() {
         </div>
       </div>
 
-      {/* Artist — hidden for haiku and poem */}
       {!isPoemOrHaiku && (
         <div style={S.card}>
           <label style={S.label}>Artist or band style <span style={{ color: '#555' }}>— optional</span></label>
@@ -434,21 +632,18 @@ export default function App() {
         </div>
       )}
 
-      {/* Status */}
       {status && (
         <div style={{ maxWidth: '600px', margin: '-1rem auto 1rem', color: '#aa00ff', fontSize: '0.85rem', textAlign: 'center' }}>
           ⚡ {status}
         </div>
       )}
 
-      {/* Generate button */}
       <div style={{ maxWidth: '600px', margin: '0 auto 2rem' }}>
         <button onClick={handleGenerate} disabled={isGenerating || !prompt} style={S.primaryBtn(isGenerating || !prompt)}>
           {generateLabel()}
         </button>
       </div>
 
-      {/* Output box */}
       {showLyrics && (
         <div style={{ maxWidth: '600px', margin: '0 auto 1.5rem', background: 'rgba(255,68,0,0.05)',
           borderRadius: '12px', padding: '1.5rem', border: '1px solid rgba(255,68,0,0.3)' }}>
@@ -473,7 +668,6 @@ export default function App() {
         </div>
       )}
 
-      {/* Paywall — only for songs */}
       {showPaywall && (
         <div style={{ maxWidth: '600px', margin: '0 auto 2rem', background: 'rgba(0,0,0,0.35)',
           borderRadius: '12px', padding: '1.5rem', border: '1px solid rgba(170,0,255,0.3)', textAlign: 'center' }}>
@@ -498,7 +692,6 @@ export default function App() {
         </div>
       )}
 
-      {/* Generating music spinner */}
       {showPaying && (
         <div style={{ maxWidth: '600px', margin: '0 auto 2rem', textAlign: 'center', color: '#aa00ff', fontSize: '0.95rem' }}>
           <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>🎸</div>
@@ -506,7 +699,6 @@ export default function App() {
         </div>
       )}
 
-      {/* Music player + download + lighttunes */}
       {showMusic && (
         <div style={{ maxWidth: '600px', margin: '0 auto', background: 'rgba(255,68,0,0.05)',
           borderRadius: '12px', padding: '1.5rem', border: '1px solid rgba(255,68,0,0.3)' }}>
@@ -517,9 +709,17 @@ export default function App() {
           <audio controls style={{ width: '100%', marginBottom: '1.25rem' }}>
             <source src={music.audio_url} type="audio/mpeg" />
           </audio>
-          <button onClick={handleDownload} style={S.greenBtn}>
+          <button onClick={() => handleDownload()} style={S.greenBtn}>
             ⬇️ Download Song (MP3)
           </button>
+          {savedSong && (
+            <button
+              onClick={() => handleCopyLink(savedSong.id)}
+              style={{ ...S.outlineBtn, width: '100%', marginTop: '0.75rem', padding: '0.9rem',
+                fontSize: '1rem', letterSpacing: '2px', textTransform: 'uppercase' }}>
+              {linkCopied ? '✅ Link Copied!' : '🔗 Copy Shareable Link'}
+            </button>
+          )}
           <a href="https://lighttunes.win" target="_blank" rel="noopener noreferrer" style={S.purpleBtn}>
             🌍 Publish on LightTunes
           </a>
