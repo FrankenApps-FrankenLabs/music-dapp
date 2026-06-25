@@ -263,7 +263,7 @@ Lyrics to restyle:
 ${prompt.replace('__own__', '')}`;
   }
 
-  return `Write original song lyrics ${artistLine} in the ${genre} genre about: ${prompt}. If the prompt contains section instructions in square brackets like [Verse 1: monastery chanting] follow them exactly — use the specified style, mood or genre for that section only. ${languageLine}
+  return `Write original song lyrics ${artistLine} in the ${genre} genre about: ${prompt}. If the prompt contains section instructions in square brackets like [Verse 1: monastery chanting] follow them exactly — use the specified style, mood or genre for that section only. Do NOT print the bracket instructions in the output — only print the section label like [Verse 1] followed by the lyrics. ${languageLine}
 Include a verse, chorus, and another verse.
 ${noNotes}
 Use section labels: [Verse 1], [Chorus], [Verse 2].`;
