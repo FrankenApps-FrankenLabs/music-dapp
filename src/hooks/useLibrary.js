@@ -3,6 +3,7 @@
 // (no DB schema change needed).
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { getMySongs, deleteSong } from '../lib/api';
+import { getMyLightTunesSongs, prefetchLightTunesAudio } from '../lib/lighttunes';
 
 function lsKey(prefix, wallet) {
   return `lw_${prefix}_${(wallet || 'anon').toLowerCase()}`;
@@ -49,6 +50,7 @@ export function useLibrary(walletAddress) {
   const [error, setError] = useState('');
   const [query, setQuery] = useState('');
   const [genreFilter, setGenreFilter] = useState('All');
+  const [sourceFilter, setSourceFilter] = useState('all'); // 'all' | 'lighttunes' | 'drafts'
   const [sort, setSort] = useState('newest');
   const [favorites, setFavorites] = useState([]);
   const [playCounts, setPlayCounts] = useState({});
@@ -63,11 +65,16 @@ export function useLibrary(walletAddress) {
     setLoading(true);
     setError('');
     try {
-      const mine = await getMySongs(walletAddress);
-      const list = mine
-        .map((s) => ({ ...s, source: s.source || 'local' }))
+      const [mine, onchain] = await Promise.all([
+        getMySongs(walletAddress).catch(() => []),
+        getMyLightTunesSongs(walletAddress).catch(() => []),
+      ]);
+      const drafts = mine.map((s) => ({ ...s, source: s.source || 'local' }));
+      const list = [...drafts, ...onchain]
         .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
       setSongs(list);
+      // Warm the on-chain audio cache so pressing play is instant.
+      list.filter((s) => s.source === 'lighttunes').slice(0, 8).forEach(prefetchLightTunesAudio);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -135,17 +142,20 @@ export function useLibrary(walletAddress) {
     if (genreFilter !== 'All') {
       list = list.filter((s) => (s.genre || '').toLowerCase().includes(genreFilter.toLowerCase()));
     }
+    if (sourceFilter === 'lighttunes') list = list.filter((s) => s.source === 'lighttunes');
+    else if (sourceFilter === 'drafts') list = list.filter((s) => s.source !== 'lighttunes');
     return sortSongs(list, sort, isFavorite);
-  }, [songs, query, genreFilter, sort, isFavorite]);
+  }, [songs, query, genreFilter, sourceFilter, sort, isFavorite]);
 
   const stats = useMemo(() => {
     const plays = songs.reduce((sum, s) => sum + (playCounts[s.id] || 0), 0);
-    return { total: songs.length, favorites: favorites.length, plays };
+    const onchain = songs.filter((s) => s.source === 'lighttunes').length;
+    return { total: songs.length, onchain, favorites: favorites.length, plays };
   }, [songs, playCounts, favorites]);
 
   return {
     songs, filtered, loading, error, stats,
-    query, setQuery, genreFilter, setGenreFilter,
+    query, setQuery, genreFilter, setGenreFilter, sourceFilter, setSourceFilter,
     sort, setSort, allGenres,
     favorites, isFavorite, toggleFavorite,
     playCounts, playsFor, registerPlay,

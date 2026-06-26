@@ -1,5 +1,6 @@
 import React from 'react';
 import { coverGradient } from '../lib/cover';
+import { prefetchLightTunesAudio } from '../lib/lighttunes';
 import CoverImage from './CoverImage';
 import Icon from './Icon';
 
@@ -19,16 +20,17 @@ const styles = {
 export default function HeroBanner({ song, isPlaying, onPlay }) {
   if (!song) return null;
   const seed = `${song.title}-${song.genre}-${song.id}`;
+  const isLT = song.source === 'lighttunes';
   const metaParts = [song.artist, (song.genre || '').split(',')[0], song.album && `💿 ${song.album}`].filter(Boolean);
 
   return (
-    <div style={styles.hero}>
+    <div style={styles.hero} onMouseEnter={() => prefetchLightTunesAudio(song)}>
       {song.cover_url && <img src={song.cover_url} alt="" style={styles.bg} onError={(e) => { e.target.style.display = 'none'; }} />}
       <div style={styles.scrim} />
       <div style={styles.content}>
         <div style={styles.art(seed)}><CoverImage song={song} glyphSize="3.5rem" /></div>
         <div style={styles.text}>
-          <span style={styles.badge}>Featured</span>
+          <span style={styles.badge}>{isLT ? 'On-chain' : 'Featured'}</span>
           <div style={styles.title} className="lw-clamp-2">{song.title || 'Untitled'}</div>
           <div style={styles.meta} className="lw-clamp-1">{metaParts.join('  ·  ')}</div>
           <button style={styles.play} onClick={onPlay}>

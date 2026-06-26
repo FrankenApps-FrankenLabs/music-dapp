@@ -27,6 +27,12 @@ const SORTS = [
   { id: 'favorites', label: 'Favorites' },
 ];
 
+const SOURCE_TABS = [
+  { id: 'all', label: 'All' },
+  { id: 'lighttunes', label: 'On-chain' },
+  { id: 'drafts', label: 'Drafts' },
+];
+
 const styles = {
   header: { display: 'flex', alignItems: 'baseline', gap: '0.75rem', maxWidth: '1100px', margin: '0 auto 1.25rem' },
   h1: { fontSize: '2rem', fontWeight: 900, letterSpacing: '2px', textTransform: 'uppercase', background: THEME.accentGrad, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', margin: 0 },
@@ -42,6 +48,10 @@ const styles = {
   stat: { background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,68,0,0.18)', borderRadius: '10px', padding: '0.5rem 0.9rem', minWidth: '78px' },
   statN: { fontSize: '1.15rem', fontWeight: 800, color: 'white', lineHeight: 1.1 },
   statL: { fontSize: '0.62rem', color: '#888', textTransform: 'uppercase', letterSpacing: '0.5px' },
+  tabs: { display: 'flex', gap: '0.4rem', maxWidth: '1100px', margin: '0 auto 1rem' },
+  tab: (active) => ({ padding: '0.45rem 0.9rem', borderRadius: '999px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 700,
+    background: active ? THEME.accentGrad2 : 'transparent', border: active ? '1px solid transparent' : '1px solid rgba(255,68,0,0.25)',
+    color: active ? 'white' : '#999' }),
   state: { maxWidth: '560px', margin: '4rem auto', textAlign: 'center', color: '#888' },
   stateIcon: { fontSize: '3rem', marginBottom: '1rem' },
   cta: { marginTop: '1.5rem', background: THEME.accentGrad, color: 'white', border: 'none', borderRadius: '10px', padding: '0.9rem 1.6rem', fontSize: '1rem', fontWeight: 800, letterSpacing: '1px', textTransform: 'uppercase', cursor: 'pointer' },
@@ -75,9 +85,9 @@ function SkeletonGrid() {
 }
 
 export default function Library({ lib, player, walletAddress, onConnect, onGoCreate, onViewLyrics, onShare, onDownload, onDelete }) {
-  const { filtered, songs, loading, error, stats, query, setQuery, genreFilter, setGenreFilter, sort, setSort, allGenres } = lib;
+  const { filtered, songs, loading, error, stats, query, setQuery, genreFilter, setGenreFilter, sourceFilter, setSourceFilter, sort, setSort, allGenres } = lib;
 
-  const featured = songs.find((s) => s.cover_url) || songs[0];
+  const featured = songs.find((s) => s.source === 'lighttunes' && s.cover_url) || songs.find((s) => s.cover_url) || songs[0];
   const featuredPlaying = featured && String(player.current?.id) === String(featured.id) && player.isPlaying;
   const playFeatured = () => {
     if (!featured) return;
@@ -106,9 +116,9 @@ export default function Library({ lib, player, walletAddress, onConnect, onGoCre
     />
   );
 
-  const inResults = query.trim() !== '' || genreFilter !== 'All';
+  const inResults = query.trim() !== '' || genreFilter !== 'All' || sourceFilter !== 'all';
   const anyFilter = inResults || sort !== 'newest';
-  const clearFilters = () => { setQuery(''); setGenreFilter('All'); setSort('newest'); };
+  const clearFilters = () => { setQuery(''); setGenreFilter('All'); setSourceFilter('all'); setSort('newest'); };
 
   const body = () => {
     if (!walletAddress) {
@@ -160,8 +170,14 @@ export default function Library({ lib, player, walletAddress, onConnect, onGoCre
           <HeroBanner song={featured} isPlaying={featuredPlaying} onPlay={playFeatured} />
           <div style={styles.statsRow}>
             <div style={styles.stat}><div style={styles.statN}>{stats.total}</div><div style={styles.statL}>Songs</div></div>
+            <div style={styles.stat}><div style={styles.statN}>{stats.onchain}</div><div style={styles.statL}>On-chain</div></div>
             <div style={styles.stat}><div style={styles.statN}>{stats.favorites}</div><div style={styles.statL}>Favorites</div></div>
             <div style={styles.stat}><div style={styles.statN}>{stats.plays}</div><div style={styles.statL}>Plays</div></div>
+          </div>
+          <div style={styles.tabs}>
+            {SOURCE_TABS.map((t) => (
+              <button key={t.id} style={styles.tab(sourceFilter === t.id)} onClick={() => setSourceFilter(t.id)}>{t.label}</button>
+            ))}
           </div>
         </>
       )}

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { coverGradient } from '../lib/cover';
 import { formatDate } from '../lib/format';
+import { LT_SITE, prefetchLightTunesAudio } from '../lib/lighttunes';
 import CoverImage from './CoverImage';
 import Icon from './Icon';
 
@@ -21,6 +22,8 @@ const styles = {
     background: 'transparent', border: 'none', cursor: 'pointer', padding: 0,
   },
   playCircle: { width: '46px', height: '46px', borderRadius: '50%', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 6px 18px rgba(0,0,0,0.45)' },
+  badge: { position: 'absolute', top: '0.5rem', left: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.56rem', fontWeight: 700, padding: '0.2rem 0.5rem', borderRadius: '999px', letterSpacing: '0.4px', textTransform: 'uppercase', background: 'rgba(0,0,0,0.5)', color: 'white', backdropFilter: 'blur(6px)', border: '1px solid rgba(255,255,255,0.14)' },
+  dot: (lt) => ({ width: 6, height: 6, borderRadius: '50%', background: lt ? '#22dd88' : '#ffaa33', boxShadow: lt ? '0 0 6px #22dd88' : 'none' }),
   fav: (active) => ({
     position: 'absolute', top: '0.5rem', right: '0.5rem', width: '32px', height: '32px',
     borderRadius: '50%', border: 'none', cursor: 'pointer', fontSize: '0.95rem',
@@ -43,13 +46,15 @@ export default function SongCard({
   const [menuOpen, setMenuOpen] = useState(false);
   const seed = `${song.title}-${song.genre}-${song.id}`;
   const showPause = isCurrent && isPlaying;
+  const isLightTunes = song.source === 'lighttunes';
 
   const runAction = (fn) => () => { setMenuOpen(false); fn(); };
 
   return (
-    <div style={styles.card(isCurrent)} className="lw-fade-in">
+    <div style={styles.card(isCurrent)} className="lw-fade-in" onMouseEnter={() => prefetchLightTunesAudio(song)}>
       <div style={styles.cover(seed)} className="lw-card-cover">
         <CoverImage song={song} />
+        <span style={styles.badge}><span style={styles.dot(isLightTunes)} />{isLightTunes ? 'Live' : 'Draft'}</span>
         <button style={styles.playOverlay} onClick={onPlay} aria-label="Play">
           <span className={`lw-play-circle${isCurrent ? ' show' : ''}`} style={styles.playCircle}>
             {isLoading ? <span style={{ fontSize: '1.1rem' }}>...</span> : <Icon name={showPause ? 'pause' : 'play'} size={24} color="#111" />}
@@ -81,7 +86,8 @@ export default function SongCard({
             {song.lyrics && <button style={styles.menuItem} onClick={runAction(() => onViewLyrics(song))}>View lyrics</button>}
             <button style={styles.menuItem} onClick={runAction(() => onDownload(song))}>Download MP3</button>
             <button style={styles.menuItem} onClick={runAction(() => onShare(song))}>Copy share link</button>
-            <button style={{ ...styles.menuItem, color: '#ff6666' }} onClick={runAction(() => onDelete(song))}>Delete</button>
+            {isLightTunes && <button style={styles.menuItem} onClick={runAction(() => window.open(`${LT_SITE}/?song=${song.songId}`, '_blank'))}>View on LightTunes</button>}
+            {!isLightTunes && <button style={{ ...styles.menuItem, color: '#ff6666' }} onClick={runAction(() => onDelete(song))}>Delete</button>}
           </div>
         </>
       )}

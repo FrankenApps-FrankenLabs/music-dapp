@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import './lib/ui.css';
 import { SERVER_URL } from './lib/config';
 import { THEME } from './lib/theme';
+import { loadLightTunesAudio, prefetchLightTunesAudio, LT_SITE } from './lib/lighttunes';
 import { usePlayer } from './hooks/usePlayer';
 import { useLibrary } from './hooks/useLibrary';
 import { useIsMobile } from './hooks/useIsMobile';
@@ -27,8 +28,16 @@ function Shell() {
 
   const isMobile = useIsMobile();
   const lib = useLibrary(walletAddress);
-  const resolveAudio = useCallback((song) => song.audio_url, []);
-  const player = usePlayer({ onTrackStart: (song) => lib.registerPlay(song), resolveAudio });
+  const resolveAudio = useCallback(async (song) => {
+    if (song.source !== 'lighttunes') return song.audio_url;
+    try {
+      return await loadLightTunesAudio(song.songId, song.total_chunks);
+    } catch (e) {
+      notify(`Could not load audio from chain: ${e.message}`, 'error');
+      throw e;
+    }
+  }, [notify]);
+  const player = usePlayer({ onTrackStart: (song) => lib.registerPlay(song), resolveAudio, prefetchAudio: prefetchLightTunesAudio });
 
   useEffect(() => {
     if (!window.ethereum) return undefined;
@@ -92,14 +101,19 @@ function Shell() {
   const onWalletClick = () => (walletAddress ? disconnectWallet() : connectWallet());
 
   const handleShare = (song) => {
-    const link = `${window.location.origin}/?song=${song.id}`;
+    const link = song.source === 'lighttunes'
+      ? `${LT_SITE}/?song=${song.songId}`
+      : `${window.location.origin}/?song=${song.id}`;
     navigator.clipboard.writeText(link)
       .then(() => notify('Share link copied', 'success'))
       .catch(() => notify(link, 'info'));
   };
 
   const handleDownload = async (song) => {
-    const url = song?.audio_url;
+    let url = song?.audio_url;
+    if (!url && song?.source === 'lighttunes') {
+      try { url = await loadLightTunesAudio(song.songId, song.total_chunks); } catch { notify('Could not load audio from chain', 'error'); return; }
+    }
     if (!url) return;
     const fileName = `${(song.title || 'song').replace(/[^a-z0-9]+/gi, '_')}.mp3`;
     try {
@@ -115,6 +129,7 @@ function Shell() {
   };
 
   const handleDelete = async (song) => {
+    if (song.source === 'lighttunes') { notify('On-chain songs are permanent and cannot be deleted', 'info'); return; }
     if (!window.confirm(`Delete "${song.title || 'Untitled'}"? This cannot be undone.`)) return;
     await lib.removeSong(song.id);
     notify('Song deleted', 'info');
