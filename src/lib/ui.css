@@ -1,0 +1,85 @@
+/* Animations + small global polish for the Library UI. Imported from App.js. */
+
+@keyframes lwFadeUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes lwFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes lwShimmer {
+  0%   { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+
+@keyframes lwPulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.5; }
+}
+
+.lw-skeleton {
+  background: linear-gradient(90deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.10) 37%, rgba(255,255,255,0.04) 63%);
+  background-size: 800px 100%;
+  animation: lwShimmer 1.4s ease infinite;
+}
+
+.lw-fade-in { animation: lwFadeIn 0.25s ease; }
+.lw-fade-up { animation: lwFadeUp 0.25s ease; }
+
+.lw-clamp-1 {
+  display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.lw-clamp-2 {
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Seek / volume range inputs styled to match the neon theme */
+input[type="range"].lw-range {
+  -webkit-appearance: none; appearance: none; height: 4px; border-radius: 999px;
+  background: rgba(255,255,255,0.15); outline: none; cursor: pointer;
+}
+input[type="range"].lw-range::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none; width: 13px; height: 13px; border-radius: 50%;
+  background: #ff4400; box-shadow: 0 0 8px rgba(255,68,0,0.8); cursor: pointer;
+}
+input[type="range"].lw-range::-moz-range-thumb {
+  width: 13px; height: 13px; border: none; border-radius: 50%;
+  background: #ff4400; box-shadow: 0 0 8px rgba(255,68,0,0.8); cursor: pointer;
+}
+
+/* Player controls: clean, no focus ring, hover states */
+.lw-ctrl {
+  background: transparent; border: none; cursor: pointer; padding: 6px; outline: none;
+  display: inline-flex; align-items: center; justify-content: center; color: #b3b3b3;
+  transition: color 0.15s ease, transform 0.12s ease;
+}
+.lw-ctrl:hover { color: #fff; transform: scale(1.09); }
+.lw-ctrl.active { color: #ff4d2e; }
+.lw-playbtn {
+  border: none; cursor: pointer; background: #fff; color: #111; border-radius: 50%; outline: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.35); transition: transform 0.12s ease;
+}
+.lw-playbtn:hover { transform: scale(1.06); }
+.lw-iconbtn {
+  background: transparent; border: none; cursor: pointer; color: #9a9a9a; padding: 6px; border-radius: 8px;
+  display: inline-flex; align-items: center; justify-content: center; outline: none;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+.lw-iconbtn:hover { color: #fff; background: rgba(255,255,255,0.08); }
+
+/* Card play button: revealed on hover (or when this track is current) */
+.lw-play-circle { opacity: 0; transform: scale(0.88) translateY(4px); transition: opacity 0.15s ease, transform 0.15s ease; }
+.lw-card-cover:hover .lw-play-circle, .lw-play-circle.show { opacity: 1; transform: scale(1) translateY(0); }
+
+/* Thin custom scrollbar */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,68,0,0.25); border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,68,0,0.45); }
