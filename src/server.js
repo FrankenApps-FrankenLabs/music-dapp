@@ -353,7 +353,7 @@ app.post('/api/instrumental', async (req, res) => {
 
     const instrumentList = instruments.join(', ');
     const sectionDesc    = sections && sections.length > 0
-      ? sections.map(s => `${s.label}: ${s.style}`).join('. ')
+      ? sections.map(s => `${s.label} (${s.duration || 30}s): ${s.style}`).join('. ')
       : '';
     const durationDesc   = length ? `Duration approximately ${length}.` : '';
 

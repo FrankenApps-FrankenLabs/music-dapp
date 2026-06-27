@@ -74,8 +74,8 @@ export default function App() {
   const [songLength, setSongLength]         = useState('2:00');
   const [instrInstruments, setInstrInstruments] = useState([]);
   const [instrSections, setInstrSections]   = useState([
-    { label: 'Intro', style: 'Ambient' },
-    { label: 'Verse 1', style: 'Electronic' },
+    { label: 'Intro', style: 'Ambient', duration: 30 },
+    { label: 'Verse 1', style: 'Electronic', duration: 60 },
   ]);
 
   useEffect(() => {
@@ -137,7 +137,7 @@ export default function App() {
     );
   };
 
-  const addSection = () => setInstrSections(prev => [...prev, { label: 'Verse 1', style: 'Electronic' }]);
+  const addSection = () => setInstrSections(prev => [...prev, { label: 'Verse 1', style: 'Electronic', duration: 30 }]);
   const removeSection = (i) => setInstrSections(prev => prev.filter((_, idx) => idx !== i));
   const updateSection = (i, field, value) => setInstrSections(prev => prev.map((s, idx) => idx === i ? { ...s, [field]: value } : s));
 
@@ -485,15 +485,6 @@ export default function App() {
         {isInstrumental ? (
           <>
             <div style={S.instrCard}>
-              <label style={S.label}>Track Length</label>
-              <div style={S.btnWrap}>
-                {lengthOptions.map(l => (
-                  <button key={l} onClick={() => setSongLength(l)} style={S.lengthBtn(songLength === l)}>{l}</button>
-                ))}
-              </div>
-            </div>
-
-            <div style={S.instrCard}>
               <label style={S.label}>Instruments <span style={{ color: '#555', fontSize: '0.75rem' }}>— pick as many as you like</span></label>
               {instrInstruments.length === 0 && <span style={S.sublabel}>No instruments selected yet</span>}
               <div style={S.btnWrap}>
@@ -504,22 +495,48 @@ export default function App() {
             </div>
 
             <div style={S.instrCard}>
-              <label style={S.label}>Sections <span style={{ color: '#555', fontSize: '0.75rem' }}>— assign a style to each</span></label>
+              <label style={S.label}>Sections <span style={{ color: '#555', fontSize: '0.75rem' }}>— style and duration per section</span></label>
               {instrSections.map((section, i) => (
-                <div key={i} style={S.sectionRow}>
-                  <select value={section.label} onChange={e => updateSection(i, 'label', e.target.value)} style={S.select}>
-                    {sectionOptions.map(o => <option key={o}>{o}</option>)}
-                  </select>
-                  <span style={{ color: '#555', fontSize: '0.8rem' }}>→</span>
-                  <select value={section.style} onChange={e => updateSection(i, 'style', e.target.value)} style={S.select}>
-                    {styleOptions.map(o => <option key={o}>{o}</option>)}
-                  </select>
-                  {instrSections.length > 1 && (
-                    <button onClick={() => removeSection(i)} style={S.removeBtn}>✕</button>
-                  )}
+                <div key={i} style={{ marginBottom: '1rem' }}>
+                  <div style={S.sectionRow}>
+                    <select value={section.label} onChange={e => updateSection(i, 'label', e.target.value)} style={S.select}>
+                      {sectionOptions.map(o => <option key={o}>{o}</option>)}
+                    </select>
+                    <span style={{ color: '#555', fontSize: '0.8rem' }}>→</span>
+                    <select value={section.style} onChange={e => updateSection(i, 'style', e.target.value)} style={S.select}>
+                      {styleOptions.map(o => <option key={o}>{o}</option>)}
+                    </select>
+                    {instrSections.length > 1 && (
+                      <button onClick={() => removeSection(i)} style={S.removeBtn}>✕</button>
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '0.4rem', paddingLeft: '0.25rem' }}>
+                    <input
+                      type="range" min="10" max="330" step="5"
+                      value={section.duration || 30}
+                      onChange={e => updateSection(i, 'duration', parseInt(e.target.value))}
+                      style={{ flex: 1, accentColor: '#aa00ff', cursor: 'pointer' }}
+                    />
+                    <span style={{ color: '#aa00ff', fontSize: '0.85rem', fontWeight: 'bold', minWidth: '45px', textAlign: 'right', fontFamily: 'monospace' }}>
+                      {section.duration || 30}s
+                    </span>
+                  </div>
                 </div>
               ))}
-              <button onClick={addSection} style={{ ...S.smallBtn, marginTop: '0.5rem' }}>+ Add Section</button>
+              <button onClick={addSection} style={{ ...S.smallBtn, marginTop: '0.25rem' }}>+ Add Section</button>
+              {(() => {
+                const total = instrSections.reduce((sum, s) => sum + (s.duration || 30), 0);
+                return (
+                  <div style={{ marginTop: '0.75rem' }}>
+                    <span style={{ fontSize: '0.75rem', color: total > 330 ? '#ff4444' : '#555', letterSpacing: '1px' }}>
+                      Total: {total}s / 330s max{total > 330 ? ' — exceeds maximum' : ''}
+                    </span>
+                  </div>
+                );
+              })()}
+              <div style={{ marginTop: '0.75rem', fontSize: '0.68rem', color: '#444', lineHeight: '1.5', fontStyle: 'italic' }}>
+                * All efforts will be taken to deliver your requested track length, however we cannot guarantee exact duration as AI is heavily involved in the generation process.
+              </div>
             </div>
 
             {status && <div style={{ maxWidth: '600px', margin: '-1rem auto 1rem', color: '#aa00ff', fontSize: '0.85rem', textAlign: 'center' }}>⚡ {status}</div>}
