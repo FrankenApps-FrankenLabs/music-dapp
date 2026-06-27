@@ -3,7 +3,7 @@ import { BrowserProvider, parseUnits } from 'ethers';
 import frankenLogo from './frankenlabs_logo.png';
 
 const RECEIVING_WALLET = '0x7FE522ab4F456cFc41FE7a7a0C94F28801CCA8fc';
-const DOWNLOAD_PRICE   = '5';
+const DOWNLOAD_PRICE   = '15';
 const SERVER_URL       = 'https://music-dapp.onrender.com';
 
 const genres = [
