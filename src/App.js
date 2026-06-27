@@ -465,7 +465,27 @@ export default function App() {
             color: walletAddress ? '#00cc66' : 'white',
             borderRadius: '8px', padding: '0.5rem 1rem', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 'bold',
           }}>
-            {walletAddress ? `✅ ${walletAddress.slice(0,6)}...${walletAddress.slice(-4)}` : '🔌 Connect Wallet'}
+            {walletAddress ? (
+  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+    <span style={{ color: '#00cc66', fontSize: '0.85rem', fontWeight: 'bold' }}>
+      ✅ {walletAddress.slice(0,6)}...{walletAddress.slice(-4)}
+    </span>
+    <button onClick={disconnectWallet} style={{
+      background: 'transparent', border: '1px solid #333', color: '#555',
+      borderRadius: '8px', padding: '0.4rem 0.75rem', cursor: 'pointer', fontSize: '0.8rem',
+    }}>
+      Disconnect
+    </button>
+  </div>
+) : (
+  <button onClick={connectWallet} style={{
+    background: 'linear-gradient(135deg,#ff4400,#aa00ff)',
+    border: 'none', color: 'white', borderRadius: '8px',
+    padding: '0.5rem 1rem', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 'bold',
+  }}>
+    🔌 Connect Wallet
+  </button>
+)}
           </button>
         </div>
 
