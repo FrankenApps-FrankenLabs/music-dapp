@@ -237,9 +237,16 @@ export default function App() {
       const blob = await res.blob();
       const burl = URL.createObjectURL(blob);
       const a    = document.createElement('a');
-      a.href = burl; a.download = 'LyricsAI-song.mp3'; a.click();
+      a.href = burl; a.download = 'LyricsAI-song.mp3';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
       URL.revokeObjectURL(burl);
-    } catch { window.open(url, '_blank'); }
+    } catch {
+      const a = document.createElement('a');
+      a.href = url; a.download = 'LyricsAI-song.mp3'; a.target = '_blank';
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    }
   };
 
   const S = {
