@@ -116,9 +116,9 @@ class Gateway {
 }
 
 async function generateMusic(lyrics, genre, artist, language, length) {
-  const langStyle = language && language !== 'English' ? `, sung in ${language}` : '';
+  const langStyle   = language && language !== 'English' ? `, sung in ${language}` : '';
   const lengthStyle = length ? `, duration ${length}` : '';
-  const style = artist ? `${genre}, ${artist} style${langStyle}${lengthStyle}` : `${genre}${langStyle}${lengthStyle}`;
+  const style       = artist ? `${genre}, ${artist} style${langStyle}${lengthStyle}` : `${genre}${langStyle}${lengthStyle}`;
   console.log(`🎵 Music generation - Style: ${style}`);
 
   let generationId;
@@ -126,7 +126,7 @@ async function generateMusic(lyrics, genre, artist, language, length) {
     const submitRes = await fetch('https://api.aimlapi.com/v2/generate/audio', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.REACT_APP_AIML_API_KEY}` },
-      body: JSON.stringify({ model: 'minimax/music-2.6', prompt: style, lyrics: lyrics.substring(0, 3000) }),
+      body: JSON.stringify({ model: 'minimax/music-2.0', prompt: style, lyrics: lyrics.substring(0, 3000) }),
     });
     const submitData = await submitRes.json();
     console.log('🎵 Submit response:', JSON.stringify(submitData, null, 2));
@@ -286,8 +286,27 @@ ${lengthGuide}
 ${noNotes}`;
 }
 
+// ─── Health check ─────────────────────────────────────────────────────────────
 app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 
+// ─── Download proxy (fixes CORS on audio files) ───────────────────────────────
+app.get('/api/download', async (req, res) => {
+  const { url } = req.query;
+  if (!url) return res.status(400).send('No URL provided');
+  try {
+    const response = await fetch(url);
+    if (!response.ok) return res.status(500).send('Failed to fetch audio');
+    const buffer = await response.arrayBuffer();
+    res.setHeader('Content-Type', 'audio/mpeg');
+    res.setHeader('Content-Disposition', 'attachment; filename="LyricsAI-song.mp3"');
+    res.send(Buffer.from(buffer));
+  } catch (err) {
+    console.error('Download proxy error:', err.message);
+    res.status(500).send('Download failed');
+  }
+});
+
+// ─── Lyrics ───────────────────────────────────────────────────────────────────
 app.post('/api/lyrics', async (req, res) => {
   const { prompt, genre, artist, language, mode, length } = req.body;
   if (!prompt) return res.status(400).json({ error: 'No prompt provided' });
@@ -302,6 +321,7 @@ app.post('/api/lyrics', async (req, res) => {
   }
 });
 
+// ─── Music ────────────────────────────────────────────────────────────────────
 app.post('/api/music', async (req, res) => {
   const { lyrics, genre, artist, language, txHash, length } = req.body;
   if (!lyrics) return res.status(400).json({ error: 'No lyrics provided' });
@@ -320,12 +340,11 @@ app.post('/api/music', async (req, res) => {
   }
 });
 
-// ─── Instrumental endpoint ────────────────────────────────────────────────────
+// ─── Instrumental ─────────────────────────────────────────────────────────────
 app.post('/api/instrumental', async (req, res) => {
   const { instruments, sections, length, txHash } = req.body;
   if (!txHash) return res.status(402).json({ error: 'Payment required' });
   if (!instruments || instruments.length === 0) return res.status(400).json({ error: 'No instruments provided' });
-
   try {
     const provider = new JsonRpcProvider(RPC);
     const receipt  = await provider.getTransactionReceipt(txHash);
@@ -333,10 +352,10 @@ app.post('/api/instrumental', async (req, res) => {
       return res.status(402).json({ error: 'Payment transaction not confirmed on chain' });
 
     const instrumentList = instruments.join(', ');
-    const sectionDesc = sections && sections.length > 0
-      ? sections.map((s, i) => `${s.label}: ${s.style}`).join('. ')
+    const sectionDesc    = sections && sections.length > 0
+      ? sections.map(s => `${s.label}: ${s.style}`).join('. ')
       : '';
-    const durationDesc = length ? `Duration approximately ${length}.` : '';
+    const durationDesc   = length ? `Duration approximately ${length}.` : '';
 
     const stylePrompt = [
       `Instrumental track featuring ${instrumentList}.`,
@@ -357,17 +376,14 @@ app.post('/api/instrumental', async (req, res) => {
 });
 
 // ─── Supabase routes ──────────────────────────────────────────────────────────
-
 app.post('/api/save-song', async (req, res) => {
   const { walletAddress, title, genre, artist, language, mode, lyrics, audioUrl } = req.body;
   if (!walletAddress || !audioUrl) return res.status(400).json({ error: 'Missing required fields' });
   try {
     await supabase.from('users').upsert({ wallet_address: walletAddress }, { onConflict: 'wallet_address' });
     const { data, error } = await supabase.from('songs').insert({
-      wallet_address: walletAddress,
-      title: title || 'Untitled',
-      genre, artist, language, mode, lyrics,
-      audio_url: audioUrl,
+      wallet_address: walletAddress, title: title || 'Untitled',
+      genre, artist, language, mode, lyrics, audio_url: audioUrl,
     }).select().single();
     if (error) throw error;
     res.json({ song: data });
@@ -380,27 +396,19 @@ app.post('/api/save-song', async (req, res) => {
 app.get('/api/my-songs/:wallet', async (req, res) => {
   const { wallet } = req.params;
   try {
-    const { data, error } = await supabase.from('songs')
-      .select('*')
-      .eq('wallet_address', wallet)
-      .order('created_at', { ascending: false });
+    const { data, error } = await supabase.from('songs').select('*').eq('wallet_address', wallet).order('created_at', { ascending: false });
     if (error) throw error;
     res.json({ songs: data });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.get('/api/song/:id', async (req, res) => {
   const { id } = req.params;
   try {
-    const { data, error } = await supabase.from('songs')
-      .select('*').eq('id', id).single();
+    const { data, error } = await supabase.from('songs').select('*').eq('id', id).single();
     if (error) throw error;
     res.json({ song: data });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.post('/api/generate', async (req, res) => {
@@ -409,9 +417,7 @@ app.post('/api/generate', async (req, res) => {
   try {
     const lyrics = await runLyricsJob(prompt);
     res.json({ lyrics, music: null });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 const PORT = process.env.PORT || 3001;

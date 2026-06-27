@@ -229,24 +229,10 @@ export default function App() {
     navigator.clipboard.writeText(lyrics).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
   };
 
-  const handleDownload = async (audioUrl) => {
+  const handleDownload = (audioUrl) => {
     const url = audioUrl || music?.audio_url;
     if (!url) return;
-    try {
-      const res  = await fetch(url);
-      const blob = await res.blob();
-      const burl = URL.createObjectURL(blob);
-      const a    = document.createElement('a');
-      a.href = burl; a.download = 'LyricsAI-song.mp3';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(burl);
-    } catch {
-      const a = document.createElement('a');
-      a.href = url; a.download = 'LyricsAI-song.mp3'; a.target = '_blank';
-      document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    }
+    window.location.href = `${SERVER_URL}/api/download?url=${encodeURIComponent(url)}`;
   };
 
   const S = {
