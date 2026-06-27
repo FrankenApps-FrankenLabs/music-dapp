@@ -115,10 +115,11 @@ class Gateway {
   }
 }
 
-async function generateMusic(lyrics, genre, artist, language) {
+async function generateMusic(lyrics, genre, artist, language, length) {
   const langStyle = language && language !== 'English' ? `, sung in ${language}` : '';
-  const style = artist ? `${genre}, ${artist} style${langStyle}` : `${genre}${langStyle}`;
-  console.log(`🎵 Music generation - Genre: ${genre} | Artist: ${artist || 'None'} | Language: ${language}`);
+  const lengthStyle = length ? `, duration ${length}` : '';
+  const style = artist ? `${genre}, ${artist} style${langStyle}${lengthStyle}` : `${genre}${langStyle}${lengthStyle}`;
+  console.log(`🎵 Music generation - Style: ${style}`);
 
   let generationId;
   try {
@@ -229,7 +230,7 @@ async function runLyricsJob(prompt) {
   return chunks.join('');
 }
 
-function buildPrompt(prompt, genre, artist, language, mode) {
+function buildPrompt(prompt, genre, artist, language, mode, length) {
   const romanizedLanguages = ['Chinese', 'Japanese', 'Korean', 'Arabic', 'Hindi', 'Russian'];
   const languageLine = language && language !== 'English'
     ? romanizedLanguages.includes(language)
@@ -270,19 +271,28 @@ Lyrics to restyle:
 ${prompt.replace('__own__', '')}`;
   }
 
+  const lengthGuide = length ? (() => {
+    const mins = parseFloat(length.replace(':', '.'));
+    if (mins <= 1.0) return 'Write a SHORT song: Verse 1, Chorus only.';
+    if (mins <= 1.5) return 'Write a short song: Verse 1, Chorus, Verse 2.';
+    if (mins <= 2.0) return 'Write a standard song: Verse 1, Chorus, Verse 2, Chorus.';
+    if (mins <= 2.5) return 'Write a full song: Verse 1, Chorus, Verse 2, Chorus, Bridge, Chorus.';
+    if (mins <= 3.0) return 'Write a longer song: Verse 1, Pre-Chorus, Chorus, Verse 2, Pre-Chorus, Chorus, Bridge, Chorus.';
+    return 'Write a long song: Intro, Verse 1, Pre-Chorus, Chorus, Verse 2, Pre-Chorus, Chorus, Bridge, Chorus, Outro.';
+  })() : 'Include a verse, chorus, and another verse.';
+
   return `Write original song lyrics ${artistLine} in the ${genre} genre about: ${prompt}. If the prompt contains section instructions in square brackets like [Verse 1: monastery chanting] follow them exactly — use the specified style, mood or genre for that section only. Do NOT print the bracket instructions in the output — only print the section label like [Verse 1] followed by the lyrics. ${languageLine}
-Include a verse, chorus, and another verse.
-${noNotes}
-Use section labels: [Verse 1], [Chorus], [Verse 2].`;
+${lengthGuide}
+${noNotes}`;
 }
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 
 app.post('/api/lyrics', async (req, res) => {
-  const { prompt, genre, artist, language, mode } = req.body;
+  const { prompt, genre, artist, language, mode, length } = req.body;
   if (!prompt) return res.status(400).json({ error: 'No prompt provided' });
   try {
-    const fullPrompt = buildPrompt(prompt, genre, artist, language, mode);
+    const fullPrompt = buildPrompt(prompt, genre, artist, language, mode, length);
     const lyrics = await runLyricsJob(fullPrompt);
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
     res.end(JSON.stringify({ lyrics }));
@@ -293,7 +303,7 @@ app.post('/api/lyrics', async (req, res) => {
 });
 
 app.post('/api/music', async (req, res) => {
-  const { lyrics, genre, artist, language, txHash } = req.body;
+  const { lyrics, genre, artist, language, txHash, length } = req.body;
   if (!lyrics) return res.status(400).json({ error: 'No lyrics provided' });
   if (!txHash) return res.status(402).json({ error: 'Payment required' });
   try {
@@ -301,7 +311,43 @@ app.post('/api/music', async (req, res) => {
     const receipt  = await provider.getTransactionReceipt(txHash);
     if (!receipt || receipt.status !== 1)
       return res.status(402).json({ error: 'Payment transaction not confirmed on chain' });
-    const music = await generateMusic(lyrics, genre, artist, language);
+    const music = await generateMusic(lyrics, genre, artist, language, length);
+    if (!music) return res.status(500).json({ error: 'Music generation failed' });
+    res.json({ music });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Instrumental endpoint ────────────────────────────────────────────────────
+app.post('/api/instrumental', async (req, res) => {
+  const { instruments, sections, length, txHash } = req.body;
+  if (!txHash) return res.status(402).json({ error: 'Payment required' });
+  if (!instruments || instruments.length === 0) return res.status(400).json({ error: 'No instruments provided' });
+
+  try {
+    const provider = new JsonRpcProvider(RPC);
+    const receipt  = await provider.getTransactionReceipt(txHash);
+    if (!receipt || receipt.status !== 1)
+      return res.status(402).json({ error: 'Payment transaction not confirmed on chain' });
+
+    const instrumentList = instruments.join(', ');
+    const sectionDesc = sections && sections.length > 0
+      ? sections.map((s, i) => `${s.label}: ${s.style}`).join('. ')
+      : '';
+    const durationDesc = length ? `Duration approximately ${length}.` : '';
+
+    const stylePrompt = [
+      `Instrumental track featuring ${instrumentList}.`,
+      durationDesc,
+      sectionDesc,
+      'No vocals. No lyrics.',
+    ].filter(Boolean).join(' ');
+
+    console.log(`🎹 Instrumental - Style: ${stylePrompt}`);
+
+    const music = await generateMusic('[Instrumental]', stylePrompt, '', '', length);
     if (!music) return res.status(500).json({ error: 'Music generation failed' });
     res.json({ music });
   } catch (err) {
@@ -341,7 +387,6 @@ app.get('/api/my-songs/:wallet', async (req, res) => {
     if (error) throw error;
     res.json({ songs: data });
   } catch (err) {
-    console.error('my-songs error:', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -354,7 +399,6 @@ app.get('/api/song/:id', async (req, res) => {
     if (error) throw error;
     res.json({ song: data });
   } catch (err) {
-    console.error('song error:', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -366,7 +410,6 @@ app.post('/api/generate', async (req, res) => {
     const lyrics = await runLyricsJob(prompt);
     res.json({ lyrics, music: null });
   } catch (err) {
-    console.error(err);
     res.status(500).json({ error: err.message });
   }
 });
