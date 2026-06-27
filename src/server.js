@@ -126,7 +126,7 @@ async function generateMusic(lyrics, genre, artist, language, length) {
     const submitRes = await fetch('https://api.aimlapi.com/v2/generate/audio', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.REACT_APP_AIML_API_KEY}` },
-      body: JSON.stringify({ model: 'minimax/music-2.0', prompt: style, lyrics: lyrics.substring(0, 3000) }),
+      body: JSON.stringify({ model: 'minimax/music-2.6', prompt: style, lyrics: lyrics.substring(0, 3000) }),
     });
     const submitData = await submitRes.json();
     console.log('🎵 Submit response:', JSON.stringify(submitData, null, 2));
